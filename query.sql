@@ -1,6 +1,4 @@
-select sum(item_price) 
-from sale_item 
-where sale_item.sale_id = sale.sale_id;
+select sale_id, sum(item_price) from sale_item where sale_id = 2002;
 
 
 
