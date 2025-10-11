@@ -20,12 +20,14 @@ CREATE TABLE product (
 
 --SALE table
 -- improvement: multiple sales per customer so p_code, quanity should be removed from sale table and added to sale_item table
+-- added payment_status
 CREATE TABLE sale (
     sale_id INTEGER NOT NULL PRIMARY KEY, 
     sale_datetime TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,  
     cus_id INTEGER NOT NULL REFERENCES customer(cus_id), 
     total_amount REAL NOT NULL CHECK (total_amount >= 0), 
-    discount_applied REAL DEFAULT 0 NOT NULL CHECK (discount_applied >= 0 AND discount_applied <= 100)     
+    discount_applied REAL DEFAULT 0 NOT NULL CHECK (discount_applied >= 0 AND discount_applied <= 100)   
+    status_id INTEGER DEFAULT 1 NOT NULL REFERENCES payment_status(status_id)
 )STRICT;
 
 --TOURNAMENT table
@@ -43,7 +45,7 @@ CREATE TABLE tournament_registration (
     tour_id INTEGER NOT NULL REFERENCES tournament(tour_id), 
     cus_id INTEGER NOT NULL REFERENCES customer(cus_id), 
     registration_datetime TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL, 
-    payment_status TEXT NOT NULL REFERENCES payment_status(status_name), 
+    payment_status_id INTEGER NOT NULL REFERENCES payment_status(payment_status_id), 
     --UNIQUE CONSTRAINT
     UNIQUE(tour_id, cus_id)
 ) STRICT;
@@ -69,7 +71,7 @@ CREATE TABLE membership (
 ) STRICT;
 
 CREATE TABLE payment_status (
-    status_id INTEGER NOT NULL PRIMARY KEY,
+    payment_status_id INTEGER NOT NULL PRIMARY KEY,
     status_name TEXT NOT NULL UNIQUE
 ) STRICT;
 
