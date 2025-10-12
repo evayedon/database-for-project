@@ -26,8 +26,8 @@ CREATE TABLE sale (
     sale_datetime TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,  
     cus_id INTEGER NOT NULL REFERENCES customer(cus_id), 
     total_amount REAL NOT NULL CHECK (total_amount >= 0), 
-    discount_applied REAL DEFAULT 0 NOT NULL CHECK (discount_applied >= 0 AND discount_applied <= 100)   
-    status_id INTEGER DEFAULT 1 NOT NULL REFERENCES payment_status(status_id)
+    discount_applied REAL DEFAULT 0 NOT NULL CHECK (discount_applied >= 0 AND discount_applied <= 100),   
+    payment_status_id INTEGER DEFAULT 3 NOT NULL REFERENCES payment_status(payment_status_id)
 )STRICT;
 
 --TOURNAMENT table
@@ -59,17 +59,20 @@ CREATE TABLE sale_item (
     item_price REAL NOT NULL CHECK (item_price > 0)
 ) STRICT;
 
+--category
 CREATE TABLE category (
     category_id INTEGER NOT NULL PRIMARY KEY,
     category_name TEXT NOT NULL UNIQUE
 ) STRICT;
 
+-- membership
 CREATE TABLE membership (
     membership_id INTEGER NOT NULL PRIMARY KEY,
     membership_status TEXT NOT NULL UNIQUE,
     discount_rate INTEGER NOT NULL CHECK (discount_rate >= 0 AND discount_rate <= 100)
 ) STRICT;
 
+-- added payment status
 CREATE TABLE payment_status (
     payment_status_id INTEGER NOT NULL PRIMARY KEY,
     status_name TEXT NOT NULL UNIQUE

@@ -49,6 +49,7 @@ string getDateTimeFromUser();
 void startPage(sqlite3 *);
 bool deleteHelper(sqlite3 *, const string &, const string &,
                   const string &, int = 1, int = 9999);
+int getID(sqlite3_stmt *, int);
 
 
 
@@ -85,6 +86,15 @@ void startPage(sqlite3 *mydb)
         case 3:
             deleteRecord(mydb);
             break;
+        case 4:
+            viewSale(mydb);
+            break;
+        case 5 :
+            viewCustomer(mydb);
+            break;
+        case 6 :
+            viewProduct(mydb);
+            break;
         case -1:
             cout << "Exiting program..." << endl;
             return; // exits the function (and loop)
@@ -102,6 +112,9 @@ void printMainMenu()
     cout << "1. Add Record" << endl;
     cout << "2. Update Record" << endl;
     cout << "3. Delete Record" << endl;
+    cout << "4. View Sale Records" << endl;
+    cout << "5. View Customer Records" << endl;
+    cout << "6. View Product Records" << endl;
 }
 
 // main menu
@@ -110,7 +123,7 @@ int mainMenu()
 
     printMainMenu();
     cout << "Enter Choice: ";
-    int choice = getValidatedChoice(1, 3);
+    int choice = getValidatedChoice(1, 6);
     return choice;
 }
 
@@ -472,7 +485,7 @@ void addTournament(sqlite3 *db)
 void addSaleItem(sqlite3 *db)
 {
     string query;
-    int sale_id, p_code, quantity;
+    int p_code, quantity;
     double p_price;
     sqlite3_stmt *stmt;
     
@@ -489,7 +502,9 @@ void addSaleItem(sqlite3 *db)
     
     cout << "Choose the Sale to add item: " << endl;
     printPage(stmt, 5, 0);
-    sale_id = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    int sale_id = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
     
     // Choose product
@@ -504,7 +519,9 @@ void addSaleItem(sqlite3 *db)
     // need to change for more than 5 products
     cout << "Choose the Product to add: " << endl;
     printPage(stmt, 5, 0);
-    p_code = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    p_code = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
     
     // Get the product price
@@ -656,7 +673,9 @@ void updateProduct(sqlite3 *db)
     // need to change for more than 5 products
     cout << "Choose the product to update: " << endl;
     printPage(stmt, 5, 0);
-    int p_code = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    int p_code = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
 
     // Choose field
@@ -765,7 +784,9 @@ void updateSale(sqlite3 *db)
 
     cout << "Choose the sale to update: " << endl;
     printPage(stmt, 5, 0);
-    int sale_id = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    int sale_id = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
 
     // Choose field
@@ -859,7 +880,9 @@ void updateCustomer(sqlite3 *db)
     }
     cout << "Choose the Customer to update: " << endl;
     printPage(stmt, 5, 0);
-    int cus_id = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    int cus_id = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
     // Choose field
     cout << "Choose field to update: " << endl;
@@ -973,7 +996,9 @@ void updateTournament(sqlite3 *db)
 
     cout << "Choose the tournament to update: " << endl;
     printPage(stmt, 5, 0);
-    int tour_id = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    int tour_id = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
 
     // Choose field
@@ -1082,8 +1107,9 @@ void updateSaleItem(sqlite3 *db)
     }
     
     cout << "Choose the Sale Item to update: " << endl;
-    printPage(stmt, 5, 0);
-    int sale_item_id = getValidatedChoice(1, 5);
+    sqlite3_reset(stmt);
+
+    int sale_item_id = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
 
     // Get current product code and price
@@ -1100,7 +1126,6 @@ void updateSaleItem(sqlite3 *db)
     
     int p_code;
     double price;
-    int sale_id;
     
     if (sqlite3_step(stmt) == SQLITE_ROW)
     {
@@ -1182,7 +1207,9 @@ void updateTournamentRegistration(sqlite3 *db)
     
     cout << "Choose Registration to Update: " << endl;
     printPage(stmt, 5, 0);
-    int reg_id = getValidatedChoice(1, 10);
+    sqlite3_reset(stmt);
+
+    int reg_id = getID(stmt, getValidatedChoice(1, 5)-1);
     sqlite3_finalize(stmt);
     
     // Choose new payment status
@@ -1285,22 +1312,157 @@ void deleteTournamentRegistration(sqlite3 *db)
 // view sale
 void viewSale(sqlite3 *db)
 {
+    string query = R"(SELECT s.sale_id, c.cus_fname || ' ' || c.cus_lname AS customer,
+                        s.sale_datetime, s.total_amount, ps.payment_status_id
+                     FROM sale s
+                     JOIN customer c ON s.cus_id = c.cus_id
+                     JOIN payment_status ps ON s.payment_status_id = ps.payment_status_id;)";
+    sqlite3_stmt *stmt;
+    int result_code = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    if (result_code != SQLITE_OK)
+    {
+        cout << "Error selecting sales: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+    cout << "Select Sale Record:\n";
+    printPage(stmt, 5, 0);
+    sqlite3_reset(stmt);
 
+    int sale_id = getID(stmt, getValidatedChoice(1, 5)-1);
+    sqlite3_finalize(stmt);
+    // Show sale items for the selected sale
+    query = R"(SELECT si.sale_item_id, p.p_name, si.quantity, si.item_price
+              FROM sale_item si
+              JOIN product p ON si.p_code = p.p_code
+              WHERE si.sale_id = ?;)";
+    result_code = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    if (result_code != SQLITE_OK)
+    {
+        cout << "Error selecting sale items: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, sale_id);
+    cout << "Sale Items for Sale ID " << sale_id << ":\n";
+    printPage(stmt, 10, 0);
+    sqlite3_finalize(stmt);
+    cout << "End of sale items." << endl;
+    cout << endl;
 }
 
 // view customer details
 void viewCustomer(sqlite3 *db)
 {
+    sqlite3_stmt *stmt;
+    string query = R"(SELECT cus_id, cus_fname '| |' cus_lname, cus_phone, cus_email, membership_status "
+                        FROM customer c JOIN membership m ON c.membership_id = m.membership_id;)";
+    int result_code = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    if (result_code != SQLITE_OK)
+    {
+        cout << "Error selecting customer items: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
 
+    cout << "Select Customer Record:\n"; 
+    printPage(stmt, 5, 0);
+    sqlite3_reset(stmt);
+
+    int cus_id = getID(stmt, getValidatedChoice(1, 5) - 1);
+    sqlite3_finalize(stmt);
+
+    query = R"(SELECT cus_id, cus_fname, cus_lname, cus_phone, cus_email, membership_status "
+                FROM customer c JOIN membership m ON c.membership_id = m.membership_id
+                WHERE cus_id = ?;)";
+    result_code = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    if (result_code != SQLITE_OK)
+    {
+        cout << "Error selecting Customer: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, cus_id);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+
+        string cus_fname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        string cus_lname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        string cus_email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        string cus_phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        string membership_status = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+
+        sqlite3_finalize(stmt);
+        cout << "Customer Information" << endl;
+        cout << "Customer ID: " << cus_id << endl;;
+        cout << "Name: " << cus_fname + " " + cus_lname << endl;
+        cout << "Phone: " << cus_phone << endl;
+        cout << "Membership status: " << membership_status << endl;
+
+        cout << "End of customer info." << endl;
+    }
+    else
+        cout << "Product not found" << endl;
+    cout << endl;
 }
 
 // view product details
 void viewProduct(sqlite3 *db)
 {
+    sqlite3_stmt *stmt;
+    string query = "SELECT p_code, p_name, c.category_name "
+                    "FROM product p JOIN category c ON p.category_id = c.category_id;";
+    int result_code = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    if (result_code != SQLITE_OK)
+    {
+        cout << "Error selecting product items: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
 
+    cout << "Select Product Record:\n"; 
+    printPage(stmt, 5, 0);
+    sqlite3_reset(stmt);
+
+    int p_code = getID(stmt, getValidatedChoice(1, 5) - 1);
+    sqlite3_finalize(stmt);
+
+    query = "SELECT p_code, p_name, c.category_name, p_price, p_quantity, min_stock_level "
+                "FROM product p JOIN category c ON p.category_id = c.category_id "
+                "WHERE p_code = ?;";
+    result_code = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    if (result_code != SQLITE_OK)
+    {
+        cout << "Error selecting Customer: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, p_code);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        string p_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        string category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        double price = (sqlite3_column_double(stmt, 3));
+        int quantity = (sqlite3_column_int(stmt, 4));
+        int min_stock_level = (sqlite3_column_int(stmt, 5));
+        sqlite3_finalize(stmt);
+
+        cout << "Product Information" << endl;
+        cout << "Product ID: " << p_code << endl;;
+        cout << "Name: " << p_name  << "        Category: " << category << "    Price: $" << price << endl;
+        cout << "Quantity: " << quantity << "         Minimum stock level: " << min_stock_level << endl;
+        cout << "End of product info." << endl;
+
+    }
+    else
+        cout << "Product not found" << endl;
+    cout << endl;
 }
 
-// helper functions
+
+// ===helper functions===
 // print pages
 void printPage(sqlite3_stmt *res, int rowsPerPage, int startNum)
 {
@@ -1322,7 +1484,7 @@ void printPage(sqlite3_stmt *res, int rowsPerPage, int startNum)
             {
                 cout << sqlite3_column_text(res, col);
                 if (col < numCols - 1)
-                    cout << " ";
+                    cout << " - ";
             }
         }
         cout << endl;
@@ -1412,7 +1574,7 @@ string getDateTimeFromUser()
 }
 
 bool deleteHelper(sqlite3 *db, const string &selectQuery, const string &deleteQuery,
-                  const string &recordName, int minID = 1, int maxID = 9999)
+                  const string &recordName, int minID, int maxID)
 {
     sqlite3_stmt *stmt;
     int result_code = sqlite3_prepare_v2(db, selectQuery.c_str(), -1, &stmt, NULL);
@@ -1455,4 +1617,18 @@ bool deleteHelper(sqlite3 *db, const string &selectQuery, const string &deleteQu
     sqlite3_finalize(stmt);
     cout << recordName << " deleted successfully!\n";
     return true;
+}
+
+int getID(sqlite3_stmt *stmt, int row)
+{
+    int currentRow = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        if (currentRow == row)
+        {
+            return sqlite3_column_int(stmt, 0);
+        }
+        currentRow++;
+    }
+    return -1; // Not found
 }
