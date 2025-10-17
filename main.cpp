@@ -1,3 +1,14 @@
+/* Program name: jbtictactoe.cpp
+*  Author: Evans Ayensu Donkor
+*  Date last updated: 10/17/2025
+* Purpose: GameZone Store is a 5-year-old family-owned video game retailer that sells games, consoles, and 
+           accessories while hosting tournaments and offering memberships. The store currently uses only paper records 
+           for sales, inventory, and customer data, causing significant operational inefficiencies. Staff cannot quickly 
+           access customer information, track inventory in real-time, or identify best-selling products. The paper system
+           makes it difficult to manage inventory orders and create targeted promotions effectively. Manual record-keeping
+           also creates time-consuming and error-prone accounting processes during tax season.
+*/
+
 #include <iostream>
 #include <string>
 #include <sqlite3.h>
