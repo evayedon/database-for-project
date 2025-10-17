@@ -1651,33 +1651,6 @@ int getValidatedChoice()
     }
 }
 
-/*
-int getValidatedChoice(int minVal, int maxVal)
-{
-    int choice;
-    
-    while (true)
-    {
-        cin >> choice;
-        
-        if (!cin)  // Non-integer input
-        {
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "That is not a valid choice! Try again: ";
-        }
-
-        else if (choice < minVal || choice > maxVal)
-        {
-            cout << "Choice must be between " << minVal << " and " << maxVal << ". Try again: ";
-        }
-        else  
-        {
-            return choice;
-        }
-    }
-}
-    */
 
 int getValidatedChoice(int minVal, int maxVal, int terminalVal)
 {
