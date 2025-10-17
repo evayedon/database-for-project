@@ -13,6 +13,9 @@ using namespace std;
 void printMainMenu();
 int mainMenu();
 
+// Transaction
+void makeSale(sqlite3 *db);
+
 void addRecord(sqlite3 *);
 // sub-menus for addRecord
 void addCustomer(sqlite3 *);
@@ -104,6 +107,9 @@ void startPage(sqlite3 *mydb)
         case 6 :
             viewProduct(mydb);
             break;
+        case 7:
+            makeSale(mydb);
+            break;    
         case -1:
             cout << "Exiting program..." << endl;
             return; // exits the function (and loop)
@@ -124,6 +130,7 @@ void printMainMenu()
     cout << "4. View Sale Records" << endl;
     cout << "5. View Customer Records" << endl;
     cout << "6. View Product Records" << endl;
+    cout << "7. Make a sale" << endl;
 }
 
 // main menu
@@ -132,7 +139,7 @@ int mainMenu()
 
     printMainMenu();
     cout << "Enter Choice: ";
-    int choice = getValidatedChoice(1, 6);
+    int choice = getValidatedChoice(1, 7);
     return choice;
 }
 
@@ -275,6 +282,136 @@ void deleteRecord(sqlite3 *db)
     }
 }
 
+// Transaction
+void makeSale(sqlite3 *db)
+{
+    int p_code, quantity, available_stock;
+    double p_price;
+    sqlite3_stmt *stmt = NULL;
+    string query;
+    char terminate;
+
+    // Begin transaction
+    sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
+
+    // Step 1: Create the sale using addSale()
+    addSale(db);
+
+    // Step 2: Get the sale_id of the sale we just created
+    sqlite3_prepare_v2(db, "SELECT last_insert_rowid();", -1, &stmt, NULL);
+    sqlite3_step(stmt);
+    int sale_id = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+
+    // Step 3: Keep adding products to the sale
+    do
+    {
+        // Choose product
+        query = "SELECT p_code, p_name, p_price FROM product;";
+        p_code = selectFromList(db, query, "Choose the Product to add:");
+
+        // Get available stock
+        query = "SELECT p_quantity, p_price FROM product WHERE p_code = ?;";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            cout << "Error preparing product query!" << endl;
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, p_code);
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            available_stock = sqlite3_column_int(stmt, 0);
+            p_price = sqlite3_column_double(stmt, 1);
+        }
+        else
+        {
+            cout << "Error: Product not found!" << endl;
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+        sqlite3_finalize(stmt);
+
+        // Validate quantity
+        cout << "Available stock: " << available_stock << endl;
+        cout << "Enter quantity: ";
+        quantity = getValidatedChoice(1, available_stock);
+
+        double item_price = quantity * p_price;
+
+        // Insert sale_item
+        query = "INSERT INTO sale_item (sale_id, p_code, quantity, item_price) VALUES (?, ?, ?, ?);";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, sale_id);
+        sqlite3_bind_int(stmt, 2, p_code);
+        sqlite3_bind_int(stmt, 3, quantity);
+        sqlite3_bind_double(stmt, 4, item_price);
+
+        if (!executeStatement(stmt))
+        {
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+        sqlite3_finalize(stmt);
+
+        // Update product stock
+        query = "UPDATE product SET p_quantity = p_quantity - ? WHERE p_code = ?;";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, quantity);
+        sqlite3_bind_int(stmt, 2, p_code);
+        if (!executeStatement(stmt))
+        {
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+        sqlite3_finalize(stmt);
+
+        cout << "Add another product? (y/n): ";
+        cin >> terminate;
+
+    } while (tolower(terminate) == 'y');
+
+    // Step 4: Update total sale amount
+    query = "UPDATE sale SET total_amount = (SELECT SUM(item_price) FROM sale_item WHERE sale_id = ?) WHERE sale_id = ?;";
+    if (!prepareStatement(db, query, &stmt))
+    {
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+        return;
+    }
+
+    sqlite3_bind_int(stmt, 1, sale_id);
+    sqlite3_bind_int(stmt, 2, sale_id);
+    if (!executeStatement(stmt))
+    {
+        sqlite3_finalize(stmt);
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+        return;
+    }
+    sqlite3_finalize(stmt);
+
+    // Step 5: Commit transaction
+    if (sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL) == SQLITE_OK)
+        cout << "Sale completed successfully. Inventory updated." << endl;
+    else
+    {
+        cout << "Error committing transaction!" << endl;
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+    }
+}
 
 // add record
 void addProduct(sqlite3 *db)
