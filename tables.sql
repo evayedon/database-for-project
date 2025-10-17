@@ -56,7 +56,7 @@ CREATE TABLE sale_item (
     sale_id INTEGER NOT NULL REFERENCES sale(sale_id),
     p_code INTEGER NOT NULL REFERENCES product(p_code),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
-    item_price REAL NOT NULL CHECK (item_price > 0)
+    item_price REAL NOT NULL CHECK (item_price > 0.0)
 ) STRICT;
 
 --category

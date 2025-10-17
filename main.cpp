@@ -334,6 +334,13 @@ void addSale(sqlite3 *db)
         return;
     }
 
+    string prompt = "Choose customer to make sale for: ";
+    cus_id = selectFromList(db, query, prompt);
+    sqlite3_finalize(stmt);
+
+    cout << "Enter discount :" ;
+    discount = getValidatedChoice(0, 100);
+
     // Payment status
     cout << "Enter payment status:\n";
     cout << "1. Pending\n2. Paid\n3. Unpaid\n4. Cancel\n";
@@ -403,11 +410,12 @@ void addTournament(sqlite3 *db)
     sqlite3_stmt *stmt;
 
     // Get tournament information
-    cout << "Enter tournament name: ";
-    getline(cin, t_name).ignore(numeric_limits<streamsize>::max(), '\n');
-    cout << "Enter tournament date (YYYY-MM-DD): ";
-    getline(cin, t_date);
-    cout << "Enter tournament entry fee: ";
+    cout << "\nEnter tournament name: ";
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    getline(cin, t_name);
+    cout << "\nTournament date and time (24 hours): " << endl;
+    t_date = getDateTimeFromUser();
+    cout << "\nEnter tournament entry fee: ";
     cin >> t_entry_fee;
     cout << "Enter maximum number of players (max player is 16): ";
     max_players = getValidatedChoice(1, 16);
@@ -424,7 +432,7 @@ void addTournament(sqlite3 *db)
     sqlite3_bind_int(stmt, 4, max_players);
 
     if (executeStatement(stmt))
-        cout << "Tournament created successfully." << endl;
+        cout << "\nTournament created successfully." << endl;
  
     sqlite3_finalize(stmt);
 }
@@ -433,7 +441,7 @@ void addSaleItem(sqlite3 *db)
 {
     int p_code, quantity, available_stock;
     double p_price;
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = NULL;
     
     // Begin transaction
     sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
@@ -444,116 +452,143 @@ void addSaleItem(sqlite3 *db)
     if (!prepareStatement(db, query, &stmt))
     {
         cout << "Error selecting records: " << sqlite3_errmsg(db) << endl;
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
         sqlite3_finalize(stmt);
         return;
     }
     
-    // get sale
-    string prompt = "Choose the Sale to add item: " ;
+    string prompt = "Choose the Sale to add item: ";
     int sale_id = selectFromList(db, query, prompt);
     sqlite3_finalize(stmt);
-    
-    
-    // Choose product
-    query = "SELECT p_code, p_name, p_price FROM product;";
-    if (!prepareStatement(db, query, &stmt))
-    {
-        cout << "Error selecting records: " << sqlite3_errmsg(db) << endl;
-        sqlite3_finalize(stmt);
-        return;
-    }
+    stmt = NULL;
 
     // add products
     prompt = "Choose the Product to add: ";
-    p_code = selectFromList(db, query, prompt);
-    sqlite3_finalize(stmt);
-    
-    // Select product  
-    query = "SELECT p_code, p_name, p_price FROM product;";
-    p_code = selectFromList(db, query, "Choose the Product to add:");
-    if (p_code == -1)
-    {
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
-    
-    // Get product details using helper functions
-    // product price
-    query = "SELECT p_price FROM product WHERE p_code = ?;";
-    if (!prepareStatement(db, query, &stmt))
-    {
-        cout << "Error: Product not found!" << endl;
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
+    char terminate;
 
-    if (sqlite3_step(stmt) == SQLITE_ROW)
+    do
     {
-        p_price = sqlite3_column_int(stmt, 0);
-        sqlite3_finalize(stmt);
-    }
-
-    // procuct quantity to get available stock
-    query = "SELECT p_quantity FROM product WHERE p_code = ?;";
-    if (!prepareStatement(db, query, &stmt))
-    {
-        cout << "Error: Could not get stock level!" << endl;
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
-    
-    if (sqlite3_step(stmt) == SQLITE_ROW)
-    {
-        available_stock = sqlite3_column_int(stmt, 0);
-        sqlite3_finalize(stmt);
-    }
-
-    // Validate quantity
-    cout << "Available stock: " << available_stock << endl;
-    cout << "Enter quantity: ";
-    quantity = getValidatedChoice(1, available_stock);
-    
-    double item_price = quantity * p_price;
-    
-    // Insert sale item
-    query = "INSERT INTO sale_item (sale_id, p_code, quantity, item_price) VALUES (?, ?, ?, ?);";
-    if (!prepareStatement(db, query, &stmt))
-    {
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
-    
-    sqlite3_bind_int(stmt, 1, sale_id);
-    sqlite3_bind_int(stmt, 2, p_code);
-    sqlite3_bind_int(stmt, 3, quantity);
-    sqlite3_bind_double(stmt, 4, item_price);
-    
-    if (!executeStatement(stmt))
-    {
-        sqlite3_finalize(stmt);
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
-
-    // Update inventory
-    query = "UPDATE product SET quantity = quantity - ? WHERE p_code = ?";
-    if (!prepareStatement(db, query, &stmt))
-    {
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
-    
-    sqlite3_bind_int(stmt, 1, quantity);
-    sqlite3_bind_int(stmt, 2, p_code);
-
-    if (!executeStatement(stmt))
-    {
-        sqlite3_finalize(stmt);
-        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-        return;
-    }
-    sqlite3_finalize(stmt);
+        query = "SELECT p_code, p_name, p_price FROM product;";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            cout << "Error selecting products: " << sqlite3_errmsg(db) << endl;
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
         
+        p_code = selectFromList(db, query, prompt);
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        
+        // procuct quantity to get available stock
+        query = "SELECT p_quantity FROM product WHERE p_code = ?;";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            cout << "Error: Could not get stock level!" << endl;
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, p_code);
+
+        int rc = sqlite3_step(stmt);
+
+        if (rc == SQLITE_ROW)
+        {
+            available_stock = sqlite3_column_int(stmt, 0);
+            sqlite3_finalize(stmt);
+            stmt = NULL;
+        }
+        else if (rc == SQLITE_DONE)
+        {
+            cout << "Error: Product not found!" << endl;
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        // Validate quantity
+        cout << "Available stock: " << available_stock << endl;
+        cout << "Enter quantity: ";
+        quantity = getValidatedChoice(1, available_stock);
+
+        // get the price
+        query = "SELECT p_price FROM product WHERE p_code = ?;";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            cout << "Error: Product not found!" << endl;
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, p_code);
+
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            p_price = sqlite3_column_double(stmt, 0);
+            cout << "Product price: " << p_price << endl;
+            sqlite3_finalize(stmt);
+            stmt = NULL;
+        }
+        else
+        {
+            cout << "Error: Could not retrieve product price!" << endl;
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        double item_price = quantity * p_price;
+
+        // Insert sale item
+        query = "INSERT INTO sale_item (sale_id, p_code, quantity, item_price) VALUES (?, ?, ?, ?);";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, sale_id);
+        sqlite3_bind_int(stmt, 2, p_code);
+        sqlite3_bind_int(stmt, 3, quantity);
+        sqlite3_bind_double(stmt, 4, item_price);
+
+        if (!executeStatement(stmt))
+        {
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+
+        // Update inventory
+        query = "UPDATE product SET p_quantity = p_quantity - ? WHERE p_code = ?;";
+        if (!prepareStatement(db, query, &stmt))
+        {
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+
+        sqlite3_bind_int(stmt, 1, quantity);
+        sqlite3_bind_int(stmt, 2, p_code);
+
+        if (!executeStatement(stmt))
+        {
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+            return;
+        }
+        
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+
+        cout << "\nAdd another product? (y/n): ";
+        cin >> terminate;
+        
+    } while (tolower(terminate) == 'y');
+
     // Update the total_amount in the sale table
     query = "UPDATE sale SET total_amount = "
             "(SELECT SUM(item_price) FROM sale_item WHERE sale_id = ?) "
@@ -575,6 +610,7 @@ void addSaleItem(sqlite3 *db)
     }
 
     sqlite3_finalize(stmt);
+    stmt = NULL;
 
     // Commit transaction
     if (sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL) == SQLITE_OK)
@@ -948,7 +984,7 @@ void updateCustomer(sqlite3 *db)
             return;
     }
     sqlite3_bind_int(stmt, 2, cus_id);
-    if (executeStatement(stmt))
+    if (!executeStatement(stmt))
     {
         cout << "Error executing statement: " << sqlite3_errmsg(db) << endl;
         sqlite3_finalize(stmt);
@@ -1467,6 +1503,33 @@ int getValidatedChoice()
     }
 }
 
+/*
+int getValidatedChoice(int minVal, int maxVal)
+{
+    int choice;
+    
+    while (true)
+    {
+        cin >> choice;
+        
+        if (!cin)  // Non-integer input
+        {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "That is not a valid choice! Try again: ";
+        }
+
+        else if (choice < minVal || choice > maxVal)
+        {
+            cout << "Choice must be between " << minVal << " and " << maxVal << ". Try again: ";
+        }
+        else  
+        {
+            return choice;
+        }
+    }
+}
+    */
 
 int getValidatedChoice(int minVal, int maxVal, int terminalVal)
 {
